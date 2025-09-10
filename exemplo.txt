@@ -1,0 +1,12 @@
+.code
+LOAD variable
+ponto1: SUB #1
+STORE variable
+SYSCALL 1
+BRPOS ponto1
+SYSCALL 0
+.endcode
+.data
+variable 10
+count 5
+.enddata

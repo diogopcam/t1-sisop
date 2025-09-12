@@ -66,4 +66,162 @@ public class Processo {
         return String.format("Processo[pid=%d, pc=%d, acc=%d, estado=%s, prioridade=%d]",
                 pid, pc, acc, estado, prioridade);
     }
+
+    public void executarInstrucao() {
+        if (isFinalizado()) {
+            estado = "finalizado";
+            System.out.println("Processo " + pid + " já está finalizado.");
+            return;
+        }
+
+        Instrucao instrucao = getProximaInstrucao();
+        if (instrucao == null) {
+            estado = "finalizado";
+            System.out.println("Processo " + pid + " não tem mais instruções para executar.");
+            return;
+        }
+
+        System.out.println("Processo " + pid + " executando: " + instrucao);
+        String tipo = instrucao.getTipo();
+        String operando = instrucao.getOperando();
+        String modo = instrucao.getModo();
+
+        if (tipo == "ADD" || tipo == "SUB" || tipo == "MULT" || tipo == "DIV")
+            executarInstrAritmetica(tipo, operando, modo);
+        else if (tipo == "LOAD" || tipo == "STORE")
+            executarInstrMemoria(tipo, operando, modo);
+        else if (tipo == "BRANY" || tipo == "BRPOS" || tipo == "BRZERO" || tipo == "BRNEG")
+            executarSalto(tipo, operando);
+        else if (tipo == "SYSCALL")
+            executarSyscall(operando);
+        else 
+            System.out.println("Instrução desconhecida: " + tipo);
+        incrementarPc();
+
+        if (isFinalizado()) {
+            estado = "finalizado";
+            System.out.println("Processo " + pid + " finalizou a execução.");
+        }
+    }
+
+    public void executarInstrAritmetica(String operacao, String operando, String modo) {
+        if (operacao == "ADD"){
+            if (modo == "imediato")
+                acc += Integer.parseInt(operando);
+            else
+                acc += getValorMemoria(operando);
+        }  
+        
+        if (operacao == "SUB"){
+            if (modo == "imediato")
+                acc -= Integer.parseInt(operando);
+            else
+                acc -= getValorMemoria(operando);
+        }
+        
+        if (operacao == "MULT"){
+            if (modo == "imediato")
+                acc *= Integer.parseInt(operando);
+            else
+                acc *= getValorMemoria(operando);
+        }
+        
+        if (operacao == "DIV"){
+            if (modo == "imediato") {
+                int val = Integer.parseInt(operando);
+                
+                if (val != 0) 
+                    acc /= val;
+                else 
+                    System.out.println("Erro: Divisão por zero");
+            } else {
+                int val = getValorMemoria(operando);
+                
+                if (val != 0) 
+                    acc /= val;
+                else 
+                    System.out.println("Erro: Divisão por zero");
+            } 
+        } 
+    }
+
+    public void executarSyscall(String operando) {
+        int syscallNum = Integer.parseInt(operando);
+        try {
+            switch (syscallNum) {
+                case 0:
+                    System.out.println("Processo " + pid + " solicitou saída (exit).");
+                    estado = "finalizado";
+                    break;
+
+                case 1:
+                    System.out.println("Processo " + pid + " solicitou leitura do conteudo do acumulador (read).");
+                    System.out.println("Acumulador atualizado: " + acc);
+                    break;
+                // 2: ler do teclado para ACC (bloquear 3-5 unidades)
+                // case 2:
+                //     System.out.println("Processo " + pid + " solicitou escrita do conteudo do acumulador (write).");
+                //     System.out.println("Conteúdo do Acumulador: " + acc);
+                //     break;
+
+                default:
+                    System.out.println("SYSCALL desconhecido: " + syscallNum);
+            }
+
+        } catch (Exception e) {
+            if (e instanceof NumberFormatException)
+                System.out.println("Erro: Operando SYSCALL inválido: " + operando);
+            else
+                System.out.println("Erro ao executar SYSCALL: " + e.getMessage());
+        }
+    }
+
+     public void executarInstrMemoria(String operacao, String operando, String modo) {
+        try {
+            if (operacao == "LOAD"){
+                if (modo == "imediato")
+                    acc = Integer.parseInt(operando);
+                else
+                    acc = getValorMemoria(operando);
+            } else if (operacao == "STORE"){
+                    if (modo == "imediato")
+                        System.out.println("Erro: STORE não pode usar modo imediato");
+                    else
+                        setValorMemoria(operando, acc);
+            } else
+                System.out.println("Operação de memória desconhecida: " + operacao);
+        }
+
+        catch (NumberFormatException e) {
+            System.out.println("Erro: Operando inválido para LOAD imediato: " + operando);
+        }
+    }
+
+    public void executarSalto(String tipo, String operando) {
+        boolean deveSaltar = false;
+
+        if (tipo == "BRANY") 
+            deveSaltar = true;
+        else if (tipo == "BRPOS" && acc > 0) 
+            deveSaltar = true;
+        else if (tipo == "BRZERO" && acc == 0) 
+            deveSaltar = true;
+        else if (tipo == "BRNEG" && acc < 0) 
+            deveSaltar = true;
+
+        if (deveSaltar) {
+            try {
+                int linhaAlvo = Integer.parseInt(operando);
+
+                if (linhaAlvo >= 0 && linhaAlvo < programa.getCodigo().size()) {
+                    pc = linhaAlvo;
+                    System.out.println("Processo " + pid + " saltou para a linha " + linhaAlvo);
+                } else
+                    System.out.println("Erro: Linha de salto fora do alcance: " + linhaAlvo);
+
+            } catch (NumberFormatException e) {
+                System.out.println("Erro: Operando de salto inválido: " + operando);
+            }
+        }
+    }
 }

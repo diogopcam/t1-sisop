@@ -10,6 +10,21 @@ public class ProgramLoader {
             "BRANY", "BRPOS", "BRZERO", "BRNEG", "SYSCALL"
     );
 
+    public List<Programa> listarProgramas(){
+        File dir = new File("./bin");
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".txt"));
+        List<Programa> programas = new ArrayList<>();
+
+        if (files != null) {
+            for (File file : files) {
+                Programa programa = new Programa();
+                programa.setNomeArquivo(file.getName());
+                programas.add(programa);
+            }
+        }
+        return programas;
+    }
+
     public Programa carregarPrograma(String filename) throws IOException {
         Programa programa = new Programa();
         programa.setNomeArquivo(filename);

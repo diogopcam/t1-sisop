@@ -1,31 +1,38 @@
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 //import ProgramLoader;
-import Model.Programa;
 import Model.Processo;
+import Model.Programa;
+import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
-        ProgramLoader loader = new ProgramLoader();
-
         try {
-            // Pessoa 1: Carregar programa
-            Programa programa = loader.carregarPrograma("exemplo.txt");
-            System.out.println("✅ Parser funcionando!");
-            System.out.println(programa);
+            ProgramLoader loader = new ProgramLoader();
+            List<Programa> programas = loader.listarProgramas();
 
-            // Pessoa 2: Criar processo executável
-            Processo processo = new Processo(1, programa, 0, 5, 0);
-            System.out.println("\n✅ Processo criado!");
-            System.out.println(processo);
+            // if (!programas.isEmpty()) {
+            //     System.out.println("Programas disponíveis:");
+            //     for (Programa prog : programas) {
+            //         System.out.println("- " + prog.getNomeArquivo());
+            // }
 
-            // Mostrar primeira instrução
-            if (processo.getProximaInstrucao() != null) {
-                System.out.println("\n📋 Primeira instrução: " + processo.getProximaInstrucao());
+            Escalonador escalonador = new Escalonador(); // instancia o escalonador
+            int pidCounter = 1;
+
+            for (Programa p : programas) {
+                Programa programa = loader.carregarPrograma("./bin/" + p.getNomeArquivo());
+
+                //////////////////////////////////////////////////////////////////////////////
+                // TO DO: remover valores mockados
+                Processo processo = new Processo(pidCounter, programa, 1, 5, 0);
+                escalonador.admitirProcesso(processo);
+
+                pidCounter++;
             }
+            escalonador.executar();
 
         } catch (Exception e) {
-            System.err.println("❌ Erro: " + e.getMessage());
             e.printStackTrace();
         }
     }

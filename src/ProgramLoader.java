@@ -10,7 +10,7 @@ public class ProgramLoader {
             "BRANY", "BRPOS", "BRZERO", "BRNEG", "SYSCALL"
     );
 
-    public List<Programa> listarProgramas(){
+    public List<Programa> listarProgramas() {
         File dir = new File("./bin");
         File[] files = dir.listFiles((d, name) -> name.endsWith(".txt"));
         List<Programa> programas = new ArrayList<>();
@@ -29,84 +29,89 @@ public class ProgramLoader {
         Programa programa = new Programa();
         programa.setNomeArquivo(filename);
 
-        BufferedReader reader = new BufferedReader(new FileReader(filename));
-        String linha;
-        String secaoAtual = null;
-        int numeroLinha = 0;
+        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
+            String linha;
+            String secaoAtual = null;
+            int numeroLinha = 0;
 
-        while ((linha = reader.readLine()) != null) {
-            linha = linha.trim();
-            System.out.println("DEBUG: Lendo linha: '" + linha + "'");
+            while ((linha = reader.readLine()) != null) {
+                linha = linha.trim();
+                System.out.println("DEBUG: Lendo linha: '" + linha + "'");
 
-            // Pular linhas vazias
-            if (linha.isEmpty()) continue;
+                if (linha.isEmpty()) continue;
 
-            // Identificar mudança de seção
-            if (linha.equalsIgnoreCase(".code")) {
-                secaoAtual = "code";
-                continue;
-            } else if (linha.equalsIgnoreCase(".data")) {
-                secaoAtual = "data";
-                continue;
-            } else if (linha.equalsIgnoreCase(".endcode") || linha.equalsIgnoreCase(".enddata")) {
-                secaoAtual = null;
-                continue;
-            }
-
-            // Processar conforme a seção
-            if ("code".equals(secaoAtual)) {
-                Instrucao instrucao = parsearLinhaCodigo(linha, numeroLinha);
-                if (instrucao != null) {
-                    programa.adicionarInstrucao(instrucao);
-                    numeroLinha++;
+                if (linha.equalsIgnoreCase(".code")) {
+                    secaoAtual = "code";
+                    continue;
+                } else if (linha.equalsIgnoreCase(".data")) {
+                    secaoAtual = "data";
+                    continue;
+                } else if (linha.equalsIgnoreCase(".endcode") || linha.equalsIgnoreCase(".enddata")) {
+                    secaoAtual = null;
+                    continue;
                 }
-            } else if ("data".equals(secaoAtual)) {
-                parsearLinhaDados(linha, programa);
+
+                if ("code".equals(secaoAtual)) {
+                    List<Instrucao> instrucoesDaLinha = parsearLinhaCodigo(linha, numeroLinha);
+
+                    for (Instrucao inst : instrucoesDaLinha) {
+                        programa.adicionarInstrucao(inst);
+                    }
+                    
+                    if (instrucoesDaLinha.stream().anyMatch(inst -> !"LABEL".equals(inst.getTipo()))) {
+                        numeroLinha++;
+                    }
+                } else if ("data".equals(secaoAtual)) {
+                    parsearLinhaDados(linha, programa);
+                }
             }
         }
 
-        reader.close();
         programa.processarLabels();
         return programa;
     }
 
-    private Instrucao parsearLinhaCodigo(String linha, int numeroLinha) {
-        System.out.println("DEBUG: Parseando linha: '" + linha + "'");
+    private List<Instrucao> parsearLinhaCodigo(String linha, int numeroLinha) {
+        List<Instrucao> instrucoes = new ArrayList<>();
 
-        // 1. Verificar se é label + instrução na mesma linha
         if (linha.contains(":") && !linha.endsWith(":")) {
-            return parsearLinhaComLabel(linha, numeroLinha);
-        }
+            int indexDoisPontos = linha.indexOf(":");
+            String labelPart = linha.substring(0, indexDoisPontos).trim();
+            String instrucaoPart = linha.substring(indexDoisPontos + 1).trim();
 
-        // 2. Verificar se é apenas label
-        if (linha.endsWith(":")) {
+            // adiciona a pseudo-instrução LABEL
+            instrucoes.add(new Instrucao("LABEL", null, null, labelPart, numeroLinha));
+            
+            // adiciona a instrucao real, se existir
+            if (!instrucaoPart.isEmpty()) {
+                instrucoes.add(parsearApenasInstrucao(instrucaoPart, numeroLinha));
+            }
+        } 
+
+        // apenas label
+        else if (linha.endsWith(":")) {
             String nomeLabel = linha.substring(0, linha.length() - 1).trim();
-            System.out.println("DEBUG: Label encontrado: '" + nomeLabel + "'");
-            return new Instrucao("LABEL", null, null, nomeLabel, numeroLinha);
+            instrucoes.add(new Instrucao("LABEL", null, null, nomeLabel, numeroLinha));
+        } 
+        // apenas instrucao real
+        else {
+            Instrucao inst = parsearApenasInstrucao(linha, numeroLinha);
+            if (inst != null)
+                instrucoes.add(inst);
         }
-
-        // 3. Processar instrução normal
-        return parsearApenasInstrucao(linha, numeroLinha);
+        return instrucoes;
     }
-
+    
     private Instrucao parsearApenasInstrucao(String linha, int numeroLinha) {
-        System.out.println("DEBUG: Parseando apenas instrução: '" + linha + "'");
-
         if (linha.isEmpty()) return null;
 
-        // Dividir comando e operandos
         String[] partes = linha.split("\\s+", 2);
         String comando = partes[0].toUpperCase();
         String operandos = partes.length > 1 ? partes[1].trim() : "";
 
-        System.out.println("DEBUG: Comando: '" + comando + "', Operandos: '" + operandos + "'");
+        if (!COMANDOS_VALIDOS.contains(comando))
+            throw new RuntimeException("Comando inválido na linha " + numeroLinha + ": " + comando);
 
-        // Validar comando
-        if (!COMANDOS_VALIDOS.contains(comando)) {
-            throw new RuntimeException("Comando inválido: " + comando);
-        }
-
-        // Determinar modo de endereçamento
         String modo = "direto";
         String operando = operandos;
 
@@ -115,52 +120,28 @@ public class ProgramLoader {
             operando = operandos.substring(1).trim();
         }
 
-        // Validar STORE (não pode ser imediato)
-        if ("STORE".equals(comando) && "imediato".equals(modo)) {
+        if ("STORE".equals(comando) && "imediato".equals(modo))
             throw new RuntimeException("ERRO: STORE não suporta modo imediato");
-        }
-
-        // Validar SYSCALL (deve ter operando numérico)
+        
         if ("SYSCALL".equals(comando)) {
             try {
                 int syscallNum = Integer.parseInt(operando);
                 if (syscallNum < 0 || syscallNum > 2) {
-                    throw new RuntimeException("ERRO: SYSCALL inválido (0-2)");
+                    throw new RuntimeException("ERRO: SYSCALL inválido (deve ser 0, 1 ou 2)");
                 }
             } catch (NumberFormatException e) {
-                throw new RuntimeException("ERRO: SYSCALL deve ter número");
+                throw new RuntimeException("ERRO: Operando do SYSCALL deve ser um número");
             }
         }
 
         return new Instrucao(comando, operando, modo, null, numeroLinha);
     }
 
-    private Instrucao parsearLinhaComLabel(String linha, int numeroLinha) {
-        System.out.println("DEBUG: Linha com label e instrução: '" + linha + "'");
-
-        // Encontrar a posição do :
-        int indexDoisPontos = linha.indexOf(":");
-        if (indexDoisPontos == -1) return null;
-
-        // Separar label e instrução
-        String labelPart = linha.substring(0, indexDoisPontos).trim();
-        String instrucaoPart = linha.substring(indexDoisPontos + 1).trim();
-
-        System.out.println("DEBUG: Label: '" + labelPart + "', Instrução: '" + instrucaoPart + "'");
-
-        // Processar a instrução COMPLETA
-        Instrucao instrucao = parsearApenasInstrucao(instrucaoPart, numeroLinha);
-        if (instrucao != null) {
-            return new Instrucao("LABEL", null, null, labelPart, numeroLinha);
-        }
-
-        return null;
-    }
-
     private void parsearLinhaDados(String linha, Programa programa) {
-        // Formato: nome valor
         String[] partes = linha.split("\\s+", 2);
-        if (partes.length < 2) return;
+        
+        if (partes.length < 2) 
+            return;
 
         String nomeVar = partes[0].trim();
         String valorStr = partes[1].trim();

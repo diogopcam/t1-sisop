@@ -30,7 +30,7 @@ public class Main {
 
                 pidCounter++;
             }
-            escalonador.executar();
+            escalonador.iniciarSimulacao();
 
         } catch (Exception e) {
             e.printStackTrace();

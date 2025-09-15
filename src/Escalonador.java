@@ -1,12 +1,14 @@
 import Model.Processo;
 import Model.Instrucao;
+
 import java.util.*;
 
 public class Escalonador {
-    private Queue<Processo> filaTempoReal;
-    private Queue<Processo> filaMelhorEsforco;
-    private List<Processo> bloqueados;
-    private int tempoGlobal;
+    private Queue<Processo> filaTempoReal;      
+    private Queue<Processo> filaMelhorEsforco;  
+    private List<Processo> bloqueados;          
+    private int tempoGlobal;                    
+    private static final int QUANTUM_PADRAO = 5; 
 
     public Escalonador() {
         this.filaTempoReal = new LinkedList<>();
@@ -25,7 +27,7 @@ public class Escalonador {
 
     public void executar() {
         while (!todasFilasVazias()) {
-            tickBloqueios();
+            tickBloqueios(); 
 
             Processo processoAtual = escolherProcesso();
 
@@ -33,21 +35,19 @@ public class Escalonador {
                 if (processoAtual.getPrioridade() != 0 && !filaTempoReal.isEmpty()) {
                     System.out.println("[Tempo " + tempoGlobal + "] Processo " + processoAtual.getPid() + " preemptado por um processo de tempo real.");
                     processoAtual.setEstado("pronto");
+                    
                     admitirProcesso(processoAtual);
                     
+                   
                     processoAtual = null;
                 } else {
+                    
                     System.out.println("[Tempo " + tempoGlobal + "] Executando Processo " + processoAtual.getPid());
                     processoAtual.setEstado("executando");
                     
                     int instrucoesExecutadasNoQuantum = 0;
                     
-                    int quantumDoProcesso;
-                    if (processoAtual.getPrioridade() == 0) {
-                        quantumDoProcesso = processoAtual.getQuantum();
-                    } else {
-                        quantumDoProcesso = Integer.MAX_VALUE;
-                    }
+                    int quantumDoProcesso = (processoAtual.getPrioridade() == 0) ? QUANTUM_PADRAO : Integer.MAX_VALUE;
 
                     while (instrucoesExecutadasNoQuantum < quantumDoProcesso) {
                         Instrucao instrucao = processoAtual.getProximaInstrucao();
@@ -56,17 +56,19 @@ public class Escalonador {
                         processoAtual.executarInstrucao(instrucao);
                         instrucoesExecutadasNoQuantum++;
 
+                        
                         if (processoAtual.getEstado().equals("bloqueado") || processoAtual.isFinalizado()) {
                             break;
                         }
 
+                        
                         if (processoAtual.getPrioridade() != 0 && !filaTempoReal.isEmpty()) {
-                            System.out.println("[Tempo " + tempoGlobal + "] Processo " + processoAtual.getPid() + " preemptado por um processo de tempo real.");
-                            processoAtual.setEstado("pronto");
-                            admitirProcesso(processoAtual);
-                            processoAtual = null;
-                            break;
-                        }
+                             System.out.println("[Tempo " + tempoGlobal + "] Processo " + processoAtual.getPid() + " preemptado por um processo de tempo real.");
+                             processoAtual.setEstado("pronto");
+                             admitirProcesso(processoAtual);
+                             processoAtual = null; 
+                             break;
+                         }
                     }
 
                     if (processoAtual != null && !processoAtual.isFinalizado() && !processoAtual.getEstado().equals("bloqueado")) {
@@ -82,12 +84,14 @@ public class Escalonador {
                         bloqueados.add(processoAtual);
                     }
                 }
+
             } else {
                 System.out.println("[Tempo " + tempoGlobal + "] Nenhum processo pronto. CPU ociosa.");
             }
 
             tempoGlobal++;
         }
+
         System.out.println("Todos os processos finalizados.");
     }
 

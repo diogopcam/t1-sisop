@@ -1,13 +1,12 @@
 import Model.Processo;
 import Model.Instrucao;
-
 import java.util.*;
 
 public class Escalonador {
-    private Queue<Processo> filaTempoReal;      // prioridade mais alta
-    private Queue<Processo> filaMelhorEsforco;  // prioridade mais baixa
-    private List<Processo> bloqueados;          // processos bloqueados
-    private int tempoGlobal;                    // relogio do sistema
+    private Queue<Processo> filaTempoReal;
+    private Queue<Processo> filaMelhorEsforco;
+    private List<Processo> bloqueados;
+    private int tempoGlobal;
 
     public Escalonador() {
         this.filaTempoReal = new LinkedList<>();
@@ -17,38 +16,78 @@ public class Escalonador {
     }
 
     public void admitirProcesso(Processo processo) {
-        if (processo.getPrioridade() == 0)
+        if (processo.getPrioridade() == 0) {
             filaTempoReal.add(processo);
-        else
+        } else {
             filaMelhorEsforco.add(processo);
+        }
     }
 
     public void executar() {
         while (!todasFilasVazias()) {
-            tickBloqueios(); // atualiza o estado dos processos bloqueados
-            Processo processo = escolherProcesso();
+            tickBloqueios();
 
-            if (!(processo == null)) {
-                Instrucao instrucao = processo.getProximaInstrucao();
+            Processo processoAtual = escolherProcesso();
 
-                if (instrucao != null)
-                    processo.executarInstrucao(instrucao);
-
-                if (processo.isFinalizado())
-                    System.out.println("[Tempo " + tempoGlobal + "] Processo " + processo.getPid() + " finalizado.");
-                else if (processo.getEstado().equals("bloqueado")) {
-                    System.out.println("[Tempo " + tempoGlobal + "] Processo " + processo.getPid() + " bloqueado.");
-                    bloqueados.add(processo);
+            if (processoAtual != null) {
+                if (processoAtual.getPrioridade() != 0 && !filaTempoReal.isEmpty()) {
+                    System.out.println("[Tempo " + tempoGlobal + "] Processo " + processoAtual.getPid() + " preemptado por um processo de tempo real.");
+                    processoAtual.setEstado("pronto");
+                    admitirProcesso(processoAtual);
+                    
+                    processoAtual = null;
                 } else {
-                    processo.setEstado("pronto");
-                    admitirProcesso(processo);
+                    System.out.println("[Tempo " + tempoGlobal + "] Executando Processo " + processoAtual.getPid());
+                    processoAtual.setEstado("executando");
+                    
+                    int instrucoesExecutadasNoQuantum = 0;
+                    
+                    int quantumDoProcesso;
+                    if (processoAtual.getPrioridade() == 0) {
+                        quantumDoProcesso = processoAtual.getQuantum();
+                    } else {
+                        quantumDoProcesso = Integer.MAX_VALUE;
+                    }
+
+                    while (instrucoesExecutadasNoQuantum < quantumDoProcesso) {
+                        Instrucao instrucao = processoAtual.getProximaInstrucao();
+                        if (instrucao == null) break;
+
+                        processoAtual.executarInstrucao(instrucao);
+                        instrucoesExecutadasNoQuantum++;
+
+                        if (processoAtual.getEstado().equals("bloqueado") || processoAtual.isFinalizado()) {
+                            break;
+                        }
+
+                        if (processoAtual.getPrioridade() != 0 && !filaTempoReal.isEmpty()) {
+                            System.out.println("[Tempo " + tempoGlobal + "] Processo " + processoAtual.getPid() + " preemptado por um processo de tempo real.");
+                            processoAtual.setEstado("pronto");
+                            admitirProcesso(processoAtual);
+                            processoAtual = null;
+                            break;
+                        }
+                    }
+
+                    if (processoAtual != null && !processoAtual.isFinalizado() && !processoAtual.getEstado().equals("bloqueado")) {
+                        if (processoAtual.getPrioridade() == 0 && instrucoesExecutadasNoQuantum >= quantumDoProcesso) {
+                            System.out.println("[Tempo " + tempoGlobal + "] Quantum de " + processoAtual.getPid() + " esgotado. Voltando para a fila.");
+                        }
+                        processoAtual.setEstado("pronto");
+                        admitirProcesso(processoAtual);
+                    } else if (processoAtual != null && processoAtual.isFinalizado()) {
+                        System.out.println("[Tempo " + tempoGlobal + "] Processo " + processoAtual.getPid() + " finalizado.");
+                    } else if (processoAtual != null && processoAtual.getEstado().equals("bloqueado")) {
+                        System.out.println("[Tempo " + tempoGlobal + "] Processo " + processoAtual.getPid() + " bloqueado.");
+                        bloqueados.add(processoAtual);
+                    }
                 }
-            } else
+            } else {
                 System.out.println("[Tempo " + tempoGlobal + "] Nenhum processo pronto. CPU ociosa.");
+            }
 
             tempoGlobal++;
         }
-
         System.out.println("Todos os processos finalizados.");
     }
 
@@ -63,21 +102,17 @@ public class Escalonador {
 
     private void tickBloqueios() {
         List<Processo> temp = new ArrayList<>();
-
         for (Processo bloqueado : bloqueados) {
             bloqueado.tickBloqueio();
-
             if (bloqueado.getEstado().equals("pronto")) {
                 temp.add(bloqueado);
                 System.out.println("[Tempo " + tempoGlobal + "] Processo " + bloqueado.getPid() + " desbloqueado.");
             }
         }
-
-        // readmite processos desbloqueados
         bloqueados.removeAll(temp);
         for (Processo processo : temp)
             admitirProcesso(processo);
-    }     
+    }
 
     private boolean todasFilasVazias() {
         return filaTempoReal.isEmpty() && filaMelhorEsforco.isEmpty() && bloqueados.isEmpty();

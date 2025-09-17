@@ -1,5 +1,6 @@
 package Model;
 import java.util.*;
+import ui.ProcessIO;
 
 public class Processo {
     // variaveis do processo
@@ -13,7 +14,7 @@ public class Processo {
     private Programa programa;
     private int tempoDeBloqueio;          // tempo restante de bloqueio
     private Map<String, Integer> memoria; // copia dos dados do programa
-    Scanner scanner = new Scanner(System.in);
+    private transient ProcessIO io;
 
     public Processo(int pid, Programa programa, int prioridade, int quantum, int tempoChegada) {
         this.pid = pid;
@@ -28,6 +29,7 @@ public class Processo {
     }
 
     // getters e setters
+    public void setIO(ProcessIO io) { this.io = io; }
     public int getPid() { return pid; }
     public int getPc() { return pc; }
     public void setPc(int pc) { this.pc = pc; }
@@ -40,6 +42,7 @@ public class Processo {
     public int getTempoChegada() { return tempoChegada; }
     public Programa getPrograma() { return programa; }
     public Map<String, Integer> getMemoria() { return memoria; }
+    public int getTempoDeBloqueio() { return tempoDeBloqueio; }
 
     public Instrucao getProximaInstrucao() {
         if (pc < programa.getCodigo().size()) {
@@ -55,6 +58,7 @@ public class Processo {
     public void bloquear(/* int unidadesTempo */) {
         estado = "bloqueado";
         tempoDeBloqueio = new Random().nextInt(3) + 3; // 3 a 5 unidades (3,4,5)
+        log("Processo bloqueado por " + tempoDeBloqueio + " unidades de tempo.");
     }
 
     public void tickBloqueio() {
@@ -84,34 +88,33 @@ public class Processo {
                 pid, pc, acc, estado, prioridade);
     }
 
-    public void executarInstrucao(Instrucao instrucao) {
-        if (instrucao == null) {
-            estado = "finalizado";
-            System.out.println("PROCESSO " + pid + ":" + " Não tem mais instruções para executar.");
-            return;
-        }
+    private void log(String msg) {
+        System.out.println("PROCESSO " + pid + ": " + msg);
+        if (io != null) io.print(this, msg);
+    }
 
-        System.out.println("PROCESSO " + pid + ":" + " Executando: " + instrucao);
+    public void executarInstrucao(Instrucao instrucao) {
+        if (instrucao == null) { estado = "finalizado"; 
+        log("Não tem mais instruções para executar."); 
+        return; 
+        }
+        log("Executando: " + instrucao);
         String tipo = instrucao.getTipo();
         String operando = instrucao.getOperando();
         String modo = instrucao.getModo();
 
-        if (tipo.equals("ADD" )|| tipo.equals("SUB") || tipo.equals("MULT") || tipo.equals("DIV"))
-            executarInstrAritmetica(tipo, operando, modo);
-        else if (tipo.equals("LOAD") || tipo.equals("STORE"))
-            executarInstrMemoria(tipo, operando, modo);
-        else if (tipo.equals("BRANY") || tipo.equals("BRPOS") || tipo.equals("BRZERO") || tipo.equals("BRNEG"))
-            executarSalto(tipo, operando);
-        else if (tipo.equals("SYSCALL"))
-            executarSyscall(operando);
-        else 
-            System.out.println("PROCESSO " + pid +  ":" + " Instrução desconhecida: " + tipo);
+        if (tipo.equals("ADD")||tipo.equals("SUB")||tipo.equals("MULT")||tipo.equals("DIV")) executarInstrAritmetica(tipo, operando, modo);
+        else if (tipo.equals("LOAD")||tipo.equals("STORE")) executarInstrMemoria(tipo, operando, modo);
+        else if (tipo.equals("BRANY")||tipo.equals("BRPOS")||tipo.equals("BRZERO")||tipo.equals("BRNEG")) executarSalto(tipo, operando);
+        else if (tipo.equals("SYSCALL")) executarSyscall(operando);
+        else log("Instrução desconhecida: " + tipo);
 
-        if (isFinalizado()) {
-            estado = "finalizado";
-            System.out.println("PROCESSO " + pid + ":" + " Finalizou a execução.");
+        if (isFinalizado()) { 
+            estado = "finalizado"; 
+            log("Finalizou a execução."); 
         }
     }
+
 
     public void executarInstrAritmetica(String operacao, String operando, String modo) {
         try {
@@ -136,19 +139,19 @@ public class Processo {
                     if (valor != 0) {
                         acc /= valor;
                     } else {
-                        System.out.println("PROCESSO " + pid +  ":" + " Erro: Divisão por zero");
+                        log("Erro: Divisão por zero");
                         return;
                     }
                     break;
                 default:
-                    System.out.println("PROCESSO " + pid +  ":" + " Operação aritmética desconhecida: " + operacao);
+                    log("Operação aritmética desconhecida: " + operacao);
                     return;
             }
 
             incrementarPc();
 
         } catch (NumberFormatException e) {
-            System.out.println("PROCESSO " + pid + ":" + " Erro: Operando inválido para " + operacao + ": " + operando);
+            log("Erro: Operando inválido para " + operacao + ": " + operando);
         }
     }
 
@@ -157,37 +160,48 @@ public class Processo {
             int syscallNum = Integer.parseInt(operando);
 
             if (syscallNum < 0 || syscallNum > 2) {
-                System.out.println("PROCESSO " + pid + ":" + "Erro: Número de SYSCALL inválido: " + syscallNum);
+                log("Erro: Número de SYSCALL inválido: " + syscallNum);  // [ALTERADO]
                 return;
             }
 
             if (syscallNum == 0) {
                 estado = "finalizado";
-                System.out.println("PROCESSO " + pid + ":" + " Solicitou saída (exit).");
-
+                log("Solicitou saída (exit).");                           // [ALTERADO]
                 incrementarPc();
                 return;
             } else if (syscallNum == 1 || syscallNum == 2) {
-                bloquear(); // chama o bloqueio do processo
-
-                if (syscallNum == 1)
-                    System.out.println("PROCESSO " + pid + ":" + " Solicitou leitura do conteudo do acumulador (read).");
-                else {
-                    System.out.println("PROCESSO " + pid + ":" + " Solicitou escrita do conteudo do acumulador (write).\n" +
-                                       "Digite um valor inteiro para o acumulador: ");
-                    acc = scanner.nextInt();
+                if (syscallNum == 1) {
+                    log("Solicitou escrita do conteudo do acumulador (write): " + acc); 
+                    if (io != null) io.print(this, "Conteúdo do Acumulador: " + acc);   
+                } else {
+                    String prompt = "Digite um valor inteiro para o acumulador: ";
+                    String entrada = null;
+                    if (io != null) entrada = io.promptInput(this, prompt);            
+                    if (entrada == null) {
+                        Scanner sc = new Scanner(System.in);                           
+                        entrada = sc.nextLine();
+                    }
+                    if ("0101".equals(entrada.trim())) {                               
+                        if (io != null) io.print(this, "Ola");
+                        System.out.println("Ola");
+                    }
+                    try {
+                        acc = Integer.parseInt(entrada.trim());
+                    } catch (NumberFormatException nfe) {
+                        log("Entrada inválida. Mantendo ACC = " + acc);                
+                    }
+                    log("Conteúdo do Acumulador: " + acc);                             
                 }
 
-                System.out.println("PROCESSO " + pid +  ":" + " Conteúdo do Acumulador: " + acc);    
-                System.out.println("PROCESSO " + pid +  ":" + " Processo bloqueado por " + tempoDeBloqueio + " unidades de tempo." );
-
+                bloquear();                                                            
                 incrementarPc();
                 return;
-            } else
-                System.out.println("PROCESSO " + pid +  ":" + " SYSCALL desconhecido: " + syscallNum);
+            } else {
+                log("SYSCALL desconhecido: " + syscallNum);                           
+            }
 
         } catch (NumberFormatException e) {
-            System.out.println("PROCESSO " + pid +  ":" + " Erro: Operando de SYSCALL inválido: " + operando);
+            log("Erro: Operando de SYSCALL inválido: " + operando);                    
         }   
     }
 
@@ -201,17 +215,17 @@ public class Processo {
                 incrementarPc();
             } else if (operacao.equals("STORE")){
                     if (modo.equals("IMEDIATO"))
-                        System.out.println("PROCESSO " + pid +  ":" + " Erro: STORE não pode usar modo imediato");
+                        log("Erro: STORE não pode usar modo imediato");
                     else {
                         setValorMemoria(operando, acc);
                         incrementarPc();
                     }
             } else
-                System.out.println("PROCESSO " + pid +  ":" + " Operação de memória desconhecida: " + operacao);
+                log("Operação de memória desconhecida: " + operacao);
         }
 
         catch (NumberFormatException e) {
-            System.out.println("PROCESSO " + pid +  ":" + "Erro: Operando inválido para LOAD imediato: " + operando);
+            log("Erro: Operando inválido para LOAD imediato: " + operando);
         }
     }
 
@@ -227,7 +241,7 @@ public class Processo {
         else if (tipo.equals("BRNEG") && acc < 0) 
             deveSaltar = true;
         else
-            System.out.println("PROCESSO " + pid +  ":" + " Condição de salto não satisfeita para " + tipo);
+            log("Condição de salto não satisfeita para " + tipo); 
             
         if (deveSaltar) {
             try {
@@ -237,12 +251,12 @@ public class Processo {
 
                 if (linhaAlvo >= 0 && linhaAlvo < programa.getCodigo().size()) {
                     pc = linhaAlvo;
-                    System.out.println("PROCESSO " + pid + ":" + " Saltou para a linha " + linhaAlvo);
+                    log("Saltou para a linha " + linhaAlvo); 
                 } else
-                    System.out.println("PROCESSO " + pid +  ":" + " Erro: Linha de salto fora do alcance: " + linhaAlvo);
+                    log("Erro: Linha de salto fora do alcance: " + linhaAlvo);
 
             } catch (NumberFormatException e) {
-                System.out.println("PROCESSO " + pid +  ":" + " Erro: Operando de salto inválido: " + operando);
+                log("Erro: Operando de salto inválido: " + operando);
             }
         } else 
             incrementarPc();

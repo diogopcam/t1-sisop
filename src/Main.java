@@ -55,7 +55,7 @@ public class Main {
         int idx = Integer.parseInt(in.nextLine().trim());
         if (idx < 1 || idx > programas.size()) { System.out.println("Índice inválido."); return nextPid; }
         String nome = programas.get(idx - 1).getNomeArquivo();
-        Programa programa = loader.carregarPrograma("./bin/" + nome);
+        Programa programa = loader.carregarPrograma("bin/" + nome);
 
         System.out.print("Tempo de chegada (t>=0): ");
         int chegada = Integer.parseInt(in.nextLine().trim());
@@ -91,3 +91,4 @@ public class Main {
         System.out.println("Simulação concluída.");
     }
 }
+

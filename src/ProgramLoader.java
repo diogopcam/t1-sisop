@@ -11,7 +11,7 @@ public class ProgramLoader {
     );
 
     public List<Programa> listarProgramas() {
-        File dir = new File("./bin");
+        File dir = new File("bin");
         File[] files = dir.listFiles((d, name) -> name.endsWith(".txt"));
         List<Programa> programas = new ArrayList<>();
 

@@ -40,7 +40,7 @@ public class Main {
     }
 
     private static void listarProgramas(ProgramLoader loader) throws Exception {
-        var programas = loader.listarProgramas();
+        List <Programa> programas = loader.listarProgramas();
         if (programas.isEmpty()) { System.out.println("Nenhum .txt encontrado em ./bin."); return; }
         System.out.println("Programas disponíveis:");
         int i = 1; 
@@ -48,7 +48,7 @@ public class Main {
     }
 
     private static int adicionarProcesso(ProgramLoader loader, Escalonador escalonador, ProcessIO io, int nextPid) throws Exception {
-        var programas = loader.listarProgramas();
+        List<Programa> programas = loader.listarProgramas();
         if (programas.isEmpty()) { System.out.println("Nenhum programa disponível."); return nextPid; }
         for (int i = 0; i < programas.size(); i++) System.out.println((i + 1) + ") " + programas.get(i).getNomeArquivo());
         System.out.print("Escolha o programa (#): ");

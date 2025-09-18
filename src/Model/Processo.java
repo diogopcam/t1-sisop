@@ -181,10 +181,6 @@ public class Processo {
                         Scanner sc = new Scanner(System.in);                           
                         entrada = sc.nextLine();
                     }
-                    if ("0101".equals(entrada.trim())) {                               
-                        if (io != null) io.print(this, "Ola");
-                        System.out.println("Ola");
-                    }
                     try {
                         acc = Integer.parseInt(entrada.trim());
                     } catch (NumberFormatException nfe) {
